@@ -1,0 +1,95 @@
+import tweepy
+import time
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
+
+CONSUMER_KEY = '4RPjBymwIwLDumKfYRAInkgLY'
+CONSUMER_SECRET = 'f84V4i0P9g2HFghnfzVvXOxnzPcWjrI4xBNQeZdyCEo1M6LH7p'
+ACCESS_KEY = '1294231997406011392-cXjxmcPkVJpDIt2kkFtxIghmOq4VZp'
+ACCESS_SECRET = 'kXqNgWaKLcjVsYu9XVpYETQrBxPkTas8ClE706jWRXHB5'
+
+
+auth = tweepy.OAuthHandler(CONSUMER_KEY,CONSUMER_SECRET)
+auth.set_access_token(ACCESS_KEY,ACCESS_SECRET)
+api=tweepy.API(auth)
+
+
+
+
+print('this is my twitter bot', flush=True)
+
+ 
+FILE_NAME = 'last_seen_id.txt'
+
+def retrieve_last_seen_id(file_name):
+    f_read = open(file_name, 'r')
+    last_seen_id = int(f_read.read().strip())
+    f_read.close()
+    return last_seen_id
+
+def store_last_seen_id(last_seen_id, file_name):
+    f_write = open(file_name, 'w')
+    f_write.write(str(last_seen_id))
+    f_write.close()
+    return
+
+def reply_to_tweets():
+    print('retrieving and replying to tweets...', flush=True)
+    
+    last_seen_id = retrieve_last_seen_id(FILE_NAME)
+    
+    mentions = api.mentions_timeline(
+                        last_seen_id,
+                        tweet_mode='extended')
+    for mention in reversed(mentions):
+        print(str(mention.id) + ' - ' + mention.full_text, flush=True)
+        last_seen_id = mention.id
+        store_last_seen_id(last_seen_id, FILE_NAME)
+        if '#hellonissan' in mention.full_text.lower():
+            print('found #hellonissan!', flush=True)
+            print('responding back...', flush=True)
+            api.update_status('@' + mention.user.screen_name +
+                    '#Hellonissan back to you!', mention.id)
+        if not mention.favorited:
+            try:
+                mention.favorite()
+                logger.info(f"Liked tweet by {mention.user.name}")
+            except Exception as e:
+                logger.error("Error on fav", exc_info=True)
+def follow_followers(api):
+    logger.info("retriving and following followers")
+    for follower in tweepy.Cursor(api.followers).items():
+        if not followers.following:
+            try:
+                follower.follow()
+                logger.info(f"following {follower.name}")
+            except tweepy.error.TweepError:
+                pass
+                
+                
+def retweet_tweets_with_hashtag(api, need_hashtags):
+    if type(need_hashtags) is list:
+        search_query = f"{need_hashtags} -filter:retweets"
+        tweets = api.search(q=search_query, lang ="en", tweet_mode='extended')
+        for tweet in tweets:
+            hashtags = [i['text'].lower() for i in tweet.__dict__['entities']['hashtags']]
+            try:
+                need_hashtags = [hashtag.strip('#') for hashtag in need_hashtags]
+                need_hashtags = list(need_hashtags)
+                if set(hashtags) & set(need_hashtags):
+                    if tweet.user.id != api.me().id:
+                        api.retweet(tweet.id)
+                        logger.info(f"Retweeted tweet from {tweet.user.name}")
+                        time.sleep(5)
+            except tweepy.TweepError:
+                logger.error("Error on retweet", exc_info=True)
+    else:
+        logger.error("Hashtag search terms needs to be of type list", exc_info=True) 
+        return
+                
+while True:
+    reply_to_tweets()
+    follow_followers(api)
+    retweet_tweets_with_hashtag(api, ["#manim"])
+    time.sleep(15)
